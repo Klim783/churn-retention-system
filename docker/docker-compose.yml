@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: churn_postgres
+    environment:
+      POSTGRES_USER: ml_user
+      POSTGRES_PASSWORD: ml_password
+      POSTGRES_DB: churn_db
+    ports:
+      - "5331:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ml_user -d churn_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.10.2
+    container_name: churn_mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - BACKEND_STORE_URI=postgresql://ml_user:ml_password@postgres:5432/churn_db
+    command: mlflow server --backend-store-uri postgresql://ml_user:ml_password@postgres:5432/churn_db --default-artifact-root /mlflow/artifacts --host 0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+
+volumes:
+  postgres_data:
+  mlflow_artifacts:
