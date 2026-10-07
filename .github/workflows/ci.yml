@@ -1,0 +1,56 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: ml_user
+          POSTGRES_PASSWORD: ml_password
+          POSTGRES_DB: churn_db_test
+        ports:
+          - 5331:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install Dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run linter and formatter checks (Ruff)
+        run: uv run ruff check .
+
+      - name: Run Type Checking (Mypy)
+        run: uv run mypy src/ --ignore/missing-imports
+
+      - name: Run pytest suite
+        env:
+          DATABASE_URL: postgresql://ml_user:ml_password@localhost:5432/churn_db_test
+          ENVIRONMENT: testing
+        run: uv run pytest tests/ -v --cov=src
+
+
